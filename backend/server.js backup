@@ -1,0 +1,3371 @@
+require("dotenv").config();
+
+const express = require("express");
+const cors = require("cors");
+const http = require("http");
+const path = require("path");
+const multer = require("multer");
+const { Server } = require("socket.io");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
+const authenticateAdmin = require("./middleware/authMiddleware");
+const db = require("./config/db");
+
+const app = express();
+
+/* =========================================================
+   HTTP SERVER
+========================================================= */
+
+const server = http.createServer(app);
+
+/* =========================================================
+   SOCKET.IO
+========================================================= */
+
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"]
+    }
+});
+
+/* =========================================================
+   CORS
+========================================================= */
+
+app.use(
+    cors({
+        origin: "http://localhost:5173",
+        credentials: true
+    })
+);
+
+/* =========================================================
+   BODY PARSER
+========================================================= */
+
+app.use(express.json());
+
+/* =========================================================
+   UPLOAD FOLDERS
+========================================================= */
+
+app.use(
+    "/uploads",
+    express.static(
+        path.join(__dirname, "uploads")
+    )
+);
+
+/* =========================================================
+   MULTER - TEAM LOGOS
+========================================================= */
+
+const logoStorage = multer.diskStorage({
+
+    destination: function (req, file, cb) {
+
+        cb(
+            null,
+            path.join(
+                __dirname,
+                "uploads",
+                "team-logos"
+            )
+        );
+
+    },
+
+    filename: function (req, file, cb) {
+
+        const extension =
+            path.extname(file.originalname);
+
+        const filename =
+            "team-" +
+            Date.now() +
+            extension;
+
+        cb(null, filename);
+
+    }
+
+});
+
+const uploadTeamLogo = multer({
+
+    storage: logoStorage,
+
+    fileFilter: function (req, file, cb) {
+
+        const allowedTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/svg+xml"
+        ];
+
+        if (
+            allowedTypes.includes(
+                file.mimetype
+            )
+        ) {
+
+            cb(null, true);
+
+        } else {
+
+            cb(
+                new Error(
+                    "Only JPG, PNG, WEBP and SVG images are allowed"
+                )
+            );
+
+        }
+
+    },
+
+    limits: {
+        fileSize: 2 * 1024 * 1024
+    }
+
+});
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+app.get("/", (req, res) => {
+
+    res.json({
+        success: true,
+        message:
+            "Football League API is running"
+    });
+
+});
+
+/* =========================================================
+   ADMIN TEST
+========================================================= */
+
+app.get(
+    "/api/admin/test",
+    authenticateAdmin,
+    (req, res) => {
+
+        res.json({
+            success: true,
+            message:
+                "Admin authentication successful",
+            admin: req.admin
+        });
+
+    }
+);
+
+/* =========================================================
+   ADMIN LOGIN
+========================================================= */
+
+app.post(
+    "/api/admin/login",
+    async (req, res) => {
+
+        try {
+
+            const {
+                username,
+                password
+            } = req.body;
+
+            if (!username || !password) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Username and password are required"
+                });
+
+            }
+
+            const [admins] =
+                await db.query(
+                    "SELECT * FROM admins WHERE username = ?",
+                    [username]
+                );
+
+            if (admins.length === 0) {
+
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Invalid username or password"
+                });
+
+            }
+
+            const admin = admins[0];
+
+            const passwordMatch =
+                await bcrypt.compare(
+                    password,
+                    admin.password
+                );
+
+            if (!passwordMatch) {
+
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Invalid username or password"
+                });
+
+            }
+
+            const token =
+                jwt.sign(
+                    {
+                        id: admin.id,
+                        username:
+                            admin.username
+                    },
+                    process.env.JWT_SECRET,
+                    {
+                        expiresIn: "1d"
+                    }
+                );
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Login successful",
+
+                token,
+
+                admin: {
+                    id: admin.id,
+                    username:
+                        admin.username
+                }
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Admin login error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message:
+                    "Server error"
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   GET ALL TEAMS
+========================================================= */
+
+app.get(
+    "/api/teams",
+    async (req, res) => {
+
+        try {
+
+            const [teams] =
+                await db.query(
+                    `SELECT *
+                     FROM teams
+                     ORDER BY points DESC,
+                     goal_difference DESC`
+                );
+
+            res.json({
+                success: true,
+                teams
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Get teams error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message:
+                    "Database error"
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   GET ALL MATCHES
+========================================================= */
+
+app.get(
+    "/api/matches",
+    async (req, res) => {
+
+        try {
+
+            const [matches] =
+                await db.query(`
+
+                    SELECT
+                        matches.*,
+
+                        home.name
+                            AS home_team_name,
+
+                        home.logo
+                            AS home_team_logo,
+
+                        away.name
+                            AS away_team_name,
+
+                        away.logo
+                            AS away_team_logo
+
+                    FROM matches
+
+                    JOIN teams home
+                        ON matches.home_team_id =
+                           home.id
+
+                    JOIN teams away
+                        ON matches.away_team_id =
+                           away.id
+
+                    ORDER BY match_date ASC
+
+                `);
+
+            res.json({
+                success: true,
+                matches
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Get matches error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message:
+                    "Database error"
+            });
+
+        }
+
+    }
+);
+
+// ======================================================
+// ADMIN FIXTURES
+// ======================================================
+
+// GET ALL FIXTURES FOR ADMIN
+app.get(
+    "/api/admin/matches",
+    authenticateAdmin,
+    async (req, res) => {
+        try {
+            const [matches] = await db.query(`
+                SELECT
+                    matches.*,
+
+                    home.name AS home_team_name,
+                    home.short_name AS home_team_short_name,
+                    home.logo AS home_team_logo,
+
+                    away.name AS away_team_name,
+                    away.short_name AS away_team_short_name,
+                    away.logo AS away_team_logo
+
+                FROM matches
+
+                JOIN teams home
+                    ON matches.home_team_id = home.id
+
+                JOIN teams away
+                    ON matches.away_team_id = away.id
+
+                ORDER BY matches.match_date ASC
+            `);
+
+            res.json({
+                success: true,
+                matches
+            });
+
+        } catch (error) {
+
+            console.error("Get admin fixtures error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+    }
+);
+
+
+// GET SINGLE MATCH
+app.get(
+    "/api/admin/matches/:id",
+    authenticateAdmin,
+    async (req, res) => {
+        try {
+
+            const { id } = req.params;
+
+            const [matches] = await db.query(`
+                SELECT
+                    matches.*,
+
+                    home.name AS home_team_name,
+                    home.short_name AS home_team_short_name,
+                    home.logo AS home_team_logo,
+
+                    away.name AS away_team_name,
+                    away.short_name AS away_team_short_name,
+                    away.logo AS away_team_logo
+
+                FROM matches
+
+                JOIN teams home
+                    ON matches.home_team_id = home.id
+
+                JOIN teams away
+                    ON matches.away_team_id = away.id
+
+                WHERE matches.id = ?
+            `, [id]);
+
+            if (matches.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+            }
+
+            res.json({
+                success: true,
+                match: matches[0]
+            });
+
+        } catch (error) {
+
+            console.error("Get single match error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+    }
+);
+
+
+// CREATE FIXTURE
+app.post(
+    "/api/admin/matches",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const {
+                home_team_id,
+                away_team_id,
+                match_date,
+                venue
+            } = req.body;
+
+
+            // Validate required fields
+            if (
+                !home_team_id ||
+                !away_team_id ||
+                !match_date
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Home team, away team and match date are required"
+                });
+            }
+
+
+            // Prevent same team
+            if (home_team_id === away_team_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Home team and away team cannot be the same"
+                });
+            }
+
+
+            // Check home team
+            const [homeTeam] = await db.query(
+                "SELECT id, name FROM teams WHERE id = ?",
+                [home_team_id]
+            );
+
+            if (homeTeam.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Home team not found"
+                });
+            }
+
+
+            // Check away team
+            const [awayTeam] = await db.query(
+                "SELECT id, name FROM teams WHERE id = ?",
+                [away_team_id]
+            );
+
+            if (awayTeam.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Away team not found"
+                });
+            }
+
+
+            // Create fixture
+            const [result] = await db.query(
+                `
+                INSERT INTO matches
+                (
+                    home_team_id,
+                    away_team_id,
+                    home_score,
+                    away_score,
+                    match_date,
+                    status,
+                    minute,
+                    venue
+                )
+                VALUES (?, ?, 0, 0, ?, 'scheduled', 0, ?)
+                `,
+                [
+                    home_team_id,
+                    away_team_id,
+                    match_date,
+                    venue || null
+                ]
+            );
+
+
+            res.status(201).json({
+                success: true,
+                message: "Fixture created successfully",
+                matchId: result.insertId
+            });
+
+
+        } catch (error) {
+
+            console.error("Create fixture error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+    }
+);
+
+
+// DELETE FIXTURE
+app.delete(
+    "/api/admin/matches/:id",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+
+            // Check if match exists
+            const [matches] = await db.query(
+                "SELECT id, status FROM matches WHERE id = ?",
+                [id]
+            );
+
+
+            if (matches.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+            }
+
+
+            // Only allow deletion of scheduled fixtures
+            if (matches[0].status !== "scheduled") {
+                return res.status(409).json({
+                    success: false,
+                    message: "Only scheduled fixtures can be deleted"
+                });
+            }
+
+
+            // Delete related events first
+            await db.query(
+                "DELETE FROM match_events WHERE match_id = ?",
+                [id]
+            );
+
+
+            // Delete fixture
+            await db.query(
+                "DELETE FROM matches WHERE id = ?",
+                [id]
+            );
+
+
+            res.json({
+                success: true,
+                message: "Fixture deleted successfully"
+            });
+
+
+        } catch (error) {
+
+            console.error("Delete fixture error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+    }
+);
+
+/* =========================================================
+   ADD TEAM
+   IMPORTANT:
+   multer MUST run before req.body is accessed.
+========================================================= */
+
+app.post(
+    "/api/admin/teams",
+    authenticateAdmin,
+    uploadTeamLogo.single("logo"),
+    async (req, res) => {
+
+        try {
+
+            console.log(
+                "ADD TEAM BODY:",
+                req.body
+            );
+
+            console.log(
+                "ADD TEAM FILE:",
+                req.file
+            );
+
+            const {
+                name,
+                short_name
+            } = req.body || {};
+
+            if (!name || !short_name) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Team name and short name are required"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK DUPLICATE TEAM
+            ----------------------------------------- */
+
+            const [existingTeams] =
+                await db.query(
+                    `SELECT id
+                     FROM teams
+                     WHERE name = ?
+                     OR short_name = ?`,
+                    [
+                        name,
+                        short_name
+                    ]
+                );
+
+            if (existingTeams.length > 0) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "Team name or short name already exists"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               LOGO PATH
+            ----------------------------------------- */
+
+            let logoPath = null;
+
+            if (req.file) {
+
+                logoPath =
+                    "/uploads/team-logos/" +
+                    req.file.filename;
+
+            }
+
+            /* -----------------------------------------
+               INSERT TEAM
+            ----------------------------------------- */
+
+            const [result] =
+                await db.query(
+                    `INSERT INTO teams
+                    (
+                        name,
+                        short_name,
+                        logo
+                    )
+                    VALUES (?, ?, ?)`,
+                    [
+                        name,
+                        short_name,
+                        logoPath
+                    ]
+                );
+
+            console.log(
+                "TEAM CREATED:",
+                result.insertId
+            );
+
+            res.status(201).json({
+
+                success: true,
+
+                message:
+                    "Team added successfully",
+
+                teamId:
+                    result.insertId,
+
+                logo:
+                    logoPath
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "ADD TEAM ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    error.message ||
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   UPDATE TEAM
+========================================================= */
+
+app.put(
+    "/api/admin/teams/:id",
+    authenticateAdmin,
+    uploadTeamLogo.single("logo"),
+    async (req, res) => {
+
+        try {
+
+            const { id } =
+                req.params;
+
+            const {
+                name,
+                short_name
+            } = req.body || {};
+
+            if (!name || !short_name) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Team name and short name are required"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK TEAM EXISTS
+            ----------------------------------------- */
+
+            const [teamRows] =
+                await db.query(
+                    `SELECT *
+                     FROM teams
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            if (teamRows.length === 0) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Team not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK DUPLICATES
+            ----------------------------------------- */
+
+            const [existingTeams] =
+                await db.query(
+                    `SELECT id
+                     FROM teams
+                     WHERE
+                        (
+                            name = ?
+                            OR short_name = ?
+                        )
+                        AND id != ?`,
+                    [
+                        name,
+                        short_name,
+                        id
+                    ]
+                );
+
+            if (existingTeams.length > 0) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "Team name or short name already exists"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               UPDATE WITH OR WITHOUT LOGO
+            ----------------------------------------- */
+
+            if (req.file) {
+
+                const logoPath =
+                    "/uploads/team-logos/" +
+                    req.file.filename;
+
+                await db.query(
+                    `UPDATE teams
+                     SET
+                        name = ?,
+                        short_name = ?,
+                        logo = ?
+                     WHERE id = ?`,
+                    [
+                        name,
+                        short_name,
+                        logoPath,
+                        id
+                    ]
+                );
+
+            } else {
+
+                await db.query(
+                    `UPDATE teams
+                     SET
+                        name = ?,
+                        short_name = ?
+                     WHERE id = ?`,
+                    [
+                        name,
+                        short_name,
+                        id
+                    ]
+                );
+
+            }
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Team updated successfully"
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "UPDATE TEAM ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    error.message ||
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   ADMIN FIXTURES
+========================================================= */
+
+/* =========================================================
+   GET ALL FIXTURES
+========================================================= */
+
+app.get(
+    "/api/admin/fixtures",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const [fixtures] =
+                await db.query(`
+
+                    SELECT
+
+                        matches.id,
+
+                        matches.home_team_id,
+                        matches.away_team_id,
+
+                        matches.home_score,
+                        matches.away_score,
+
+                        matches.match_date,
+
+                        matches.status,
+
+                        matches.minute,
+
+                        matches.venue,
+
+                        matches.created_at,
+
+                        home.name
+                            AS home_team_name,
+
+                        home.short_name
+                            AS home_team_short_name,
+
+                        home.logo
+                            AS home_team_logo,
+
+                        away.name
+                            AS away_team_name,
+
+                        away.short_name
+                            AS away_team_short_name,
+
+                        away.logo
+                            AS away_team_logo
+
+                    FROM matches
+
+                    JOIN teams home
+                        ON matches.home_team_id =
+                           home.id
+
+                    JOIN teams away
+                        ON matches.away_team_id =
+                           away.id
+
+                    ORDER BY
+                        matches.match_date ASC
+
+                `);
+
+            res.json({
+
+                success: true,
+
+                fixtures
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "GET FIXTURES ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   ADD FIXTURE
+========================================================= */
+
+app.post(
+    "/api/admin/fixtures",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const {
+                home_team_id,
+                away_team_id,
+                match_date,
+                venue
+            } = req.body || {};
+
+            /* -----------------------------------------
+               VALIDATION
+            ----------------------------------------- */
+
+            if (
+                !home_team_id ||
+                !away_team_id ||
+                !match_date
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Home team, away team and match date are required"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               SAME TEAM CHECK
+            ----------------------------------------- */
+
+            if (
+                Number(home_team_id) ===
+                Number(away_team_id)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Home team and away team cannot be the same"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK HOME TEAM
+            ----------------------------------------- */
+
+            const [homeTeams] =
+                await db.query(
+                    `SELECT id
+                     FROM teams
+                     WHERE id = ?`,
+                    [home_team_id]
+                );
+
+            if (homeTeams.length === 0) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Home team not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK AWAY TEAM
+            ----------------------------------------- */
+
+            const [awayTeams] =
+                await db.query(
+                    `SELECT id
+                     FROM teams
+                     WHERE id = ?`,
+                    [away_team_id]
+                );
+
+            if (awayTeams.length === 0) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Away team not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK EXACT DUPLICATE FIXTURE
+            ----------------------------------------- */
+
+            const [existingFixtures] =
+                await db.query(
+                    `SELECT id
+                     FROM matches
+                     WHERE
+                        home_team_id = ?
+                        AND away_team_id = ?
+                        AND match_date = ?`,
+                    [
+                        home_team_id,
+                        away_team_id,
+                        match_date
+                    ]
+                );
+
+            if (
+                existingFixtures.length > 0
+            ) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "This fixture already exists"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               INSERT FIXTURE
+            ----------------------------------------- */
+
+            const [result] =
+                await db.query(
+                    `INSERT INTO matches
+                    (
+                        home_team_id,
+                        away_team_id,
+                        home_score,
+                        away_score,
+                        match_date,
+                        status,
+                        minute,
+                        venue
+                    )
+                    VALUES
+                    (
+                        ?,
+                        ?,
+                        0,
+                        0,
+                        ?,
+                        'scheduled',
+                        0,
+                        ?
+                    )`,
+                    [
+                        home_team_id,
+                        away_team_id,
+                        match_date,
+                        venue || null
+                    ]
+                );
+
+            console.log(
+                "FIXTURE CREATED:",
+                result.insertId
+            );
+
+            res.status(201).json({
+
+                success: true,
+
+                message:
+                    "Fixture created successfully",
+
+                fixtureId:
+                    result.insertId
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "ADD FIXTURE ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    error.message ||
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   UPDATE FIXTURE
+========================================================= */
+
+app.put(
+    "/api/admin/fixtures/:id",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } =
+                req.params;
+
+            const {
+                home_team_id,
+                away_team_id,
+                match_date,
+                venue
+            } = req.body || {};
+
+            /* -----------------------------------------
+               VALIDATION
+            ----------------------------------------- */
+
+            if (
+                !home_team_id ||
+                !away_team_id ||
+                !match_date
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Home team, away team and match date are required"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               SAME TEAM CHECK
+            ----------------------------------------- */
+
+            if (
+                Number(home_team_id) ===
+                Number(away_team_id)
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Home team and away team cannot be the same"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK FIXTURE
+            ----------------------------------------- */
+
+            const [fixtures] =
+                await db.query(
+                    `SELECT id
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            if (fixtures.length === 0) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Fixture not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK TEAMS
+            ----------------------------------------- */
+
+            const [teams] =
+                await db.query(
+                    `SELECT id
+                     FROM teams
+                     WHERE id IN (?, ?)`,
+                    [
+                        home_team_id,
+                        away_team_id
+                    ]
+                );
+
+            if (teams.length !== 2) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "One or both teams were not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               CHECK DUPLICATE
+            ----------------------------------------- */
+
+            const [existingFixtures] =
+                await db.query(
+                    `SELECT id
+                     FROM matches
+                     WHERE
+                        home_team_id = ?
+                        AND away_team_id = ?
+                        AND match_date = ?
+                        AND id != ?`,
+                    [
+                        home_team_id,
+                        away_team_id,
+                        match_date,
+                        id
+                    ]
+                );
+
+            if (
+                existingFixtures.length > 0
+            ) {
+
+                return res.status(409).json({
+
+                    success: false,
+
+                    message:
+                        "This fixture already exists"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               UPDATE
+            ----------------------------------------- */
+
+            await db.query(
+                `UPDATE matches
+                 SET
+                    home_team_id = ?,
+                    away_team_id = ?,
+                    match_date = ?,
+                    venue = ?
+                 WHERE id = ?`,
+                [
+                    home_team_id,
+                    away_team_id,
+                    match_date,
+                    venue || null,
+                    id
+                ]
+            );
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Fixture updated successfully"
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "UPDATE FIXTURE ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    error.message ||
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   DELETE FIXTURE
+========================================================= */
+
+app.delete(
+    "/api/admin/fixtures/:id",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } =
+                req.params;
+
+            /* -----------------------------------------
+               CHECK FIXTURE
+            ----------------------------------------- */
+
+            const [fixtures] =
+                await db.query(
+                    `SELECT id
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            if (fixtures.length === 0) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Fixture not found"
+
+                });
+
+            }
+
+            /* -----------------------------------------
+               DELETE MATCH EVENTS FIRST
+            ----------------------------------------- */
+
+            await db.query(
+                `DELETE FROM match_events
+                 WHERE match_id = ?`,
+                [id]
+            );
+
+            /* -----------------------------------------
+               DELETE FIXTURE
+            ----------------------------------------- */
+
+            await db.query(
+                `DELETE FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            res.json({
+
+                success: true,
+
+                message:
+                    "Fixture deleted successfully"
+
+            });
+
+        } catch (error) {
+
+            console.error(
+                "DELETE FIXTURE ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    error.message ||
+                    "Database error"
+
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   STAGE 9 — LIVE MATCH CONTROL
+========================================================= */
+
+
+/* =========================================================
+   GET SINGLE MATCH
+========================================================= */
+
+app.get(
+    "/api/admin/matches/:id",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const [matches] = await db.query(`
+                SELECT
+
+                    matches.*,
+
+                    home.name AS home_team_name,
+                    home.short_name AS home_team_short_name,
+                    home.logo AS home_team_logo,
+
+                    away.name AS away_team_name,
+                    away.short_name AS away_team_short_name,
+                    away.logo AS away_team_logo
+
+                FROM matches
+
+                JOIN teams home
+                    ON matches.home_team_id = home.id
+
+                JOIN teams away
+                    ON matches.away_team_id = away.id
+
+                WHERE matches.id = ?
+
+                LIMIT 1
+            `, [id]);
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            const match = matches[0];
+
+            const [events] = await db.query(`
+                SELECT *
+                FROM match_events
+                WHERE match_id = ?
+                ORDER BY minute ASC, id ASC
+            `, [id]);
+
+            res.json({
+                success: true,
+                match,
+                events
+            });
+
+        } catch (error) {
+
+            console.error(
+                "GET SINGLE MATCH ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   START MATCH
+========================================================= */
+
+app.put(
+    "/api/admin/matches/:id/start",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const [matches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            const match = matches[0];
+
+            if (match.status !== "scheduled") {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Only scheduled matches can be started"
+                });
+
+            }
+
+            await db.query(
+                `UPDATE matches
+                 SET
+                    status = 'live',
+                    minute = 1
+                 WHERE id = ?`,
+                [id]
+            );
+
+            const [updatedMatches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            io.emit(
+                "match_updated",
+                updatedMatch
+            );
+
+            res.json({
+                success: true,
+                message: "Match started",
+                match: updatedMatch
+            });
+
+        } catch (error) {
+
+            console.error(
+                "START MATCH ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   UPDATE MATCH STATUS
+========================================================= */
+
+app.put(
+    "/api/admin/matches/:id/status",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const { status } =
+                req.body || {};
+
+            const allowedStatuses = [
+                "scheduled",
+                "live",
+                "half-time",
+                "finished",
+                "postponed"
+            ];
+
+            if (
+                !allowedStatuses.includes(status)
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid match status"
+                });
+
+            }
+
+            const [matches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            await db.query(
+                `UPDATE matches
+                 SET status = ?
+                 WHERE id = ?`,
+                [
+                    status,
+                    id
+                ]
+            );
+
+            const [updatedMatches] =
+                await db.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            io.emit(
+                "match_updated",
+                updatedMatch
+            );
+
+            res.json({
+                success: true,
+                message:
+                    "Match status updated",
+                match: updatedMatch
+            });
+
+        } catch (error) {
+
+            console.error(
+                "UPDATE MATCH STATUS ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   UPDATE MATCH MINUTE
+========================================================= */
+
+app.put(
+    "/api/admin/matches/:id/minute",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const { minute } =
+                req.body || {};
+
+            const numericMinute =
+                Number(minute);
+
+            if (
+                !Number.isInteger(
+                    numericMinute
+                ) ||
+                numericMinute < 0 ||
+                numericMinute > 130
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Minute must be a number between 0 and 130"
+                });
+
+            }
+
+            const [matches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            await db.query(
+                `UPDATE matches
+                 SET minute = ?
+                 WHERE id = ?`,
+                [
+                    numericMinute,
+                    id
+                ]
+            );
+
+            const [updatedMatches] =
+                await db.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            io.emit(
+                "match_updated",
+                updatedMatch
+            );
+
+            res.json({
+                success: true,
+                message:
+                    "Match minute updated",
+                match: updatedMatch
+            });
+
+        } catch (error) {
+
+            console.error(
+                "UPDATE MATCH MINUTE ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   UPDATE MATCH SCORE
+========================================================= */
+
+app.put(
+    "/api/admin/matches/:id/score",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const {
+                home_score,
+                away_score
+            } = req.body || {};
+
+            const homeScore =
+                Number(home_score);
+
+            const awayScore =
+                Number(away_score);
+
+            if (
+                !Number.isInteger(homeScore) ||
+                !Number.isInteger(awayScore) ||
+                homeScore < 0 ||
+                awayScore < 0
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Scores must be non-negative whole numbers"
+                });
+
+            }
+
+            const [matches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            await db.query(
+                `UPDATE matches
+                 SET
+                    home_score = ?,
+                    away_score = ?
+                 WHERE id = ?`,
+                [
+                    homeScore,
+                    awayScore,
+                    id
+                ]
+            );
+
+            const [updatedMatches] =
+                await db.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            io.emit(
+                "match_updated",
+                updatedMatch
+            );
+
+            res.json({
+                success: true,
+                message:
+                    "Match score updated",
+                match: updatedMatch
+            });
+
+        } catch (error) {
+
+            console.error(
+                "UPDATE SCORE ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   FINISH MATCH
+========================================================= */
+
+app.put(
+    "/api/admin/matches/:id/finish",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const [matches] = await db.query(
+                `SELECT *
+                 FROM matches
+                 WHERE id = ?`,
+                [id]
+            );
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+            const match = matches[0];
+
+            if (
+                match.status === "finished"
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Match is already finished"
+                });
+
+            }
+
+            await db.query(
+                `UPDATE matches
+                 SET
+                    status = 'finished'
+                 WHERE id = ?`,
+                [id]
+            );
+
+            const [updatedMatches] =
+                await db.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            io.emit(
+                "match_finished",
+                updatedMatch
+            );
+
+            res.json({
+                success: true,
+                message:
+                    "Match finished successfully",
+                match: updatedMatch
+            });
+
+        } catch (error) {
+
+            console.error(
+                "FINISH MATCH ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   ADD MATCH EVENT
+========================================================= */
+
+app.post(
+    "/api/admin/matches/:id/events",
+    authenticateAdmin,
+    async (req, res) => {
+
+        const connection =
+            await db.getConnection();
+
+        try {
+
+            const { id } = req.params;
+
+            const {
+                team_id,
+                player_name,
+                event_type,
+                minute
+            } = req.body || {};
+
+            const allowedEvents = [
+                "goal",
+                "yellow_card",
+                "red_card",
+                "substitution"
+            ];
+
+            if (
+                !allowedEvents.includes(
+                    event_type
+                )
+            ) {
+
+                connection.release();
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid event type"
+                });
+
+            }
+
+            const numericMinute =
+                Number(minute);
+
+            if (
+                !Number.isInteger(
+                    numericMinute
+                ) ||
+                numericMinute < 0 ||
+                numericMinute > 130
+            ) {
+
+                connection.release();
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Invalid match minute"
+                });
+
+            }
+
+            await connection.beginTransaction();
+
+            /* -----------------------------------------
+               CHECK MATCH
+            ----------------------------------------- */
+
+            const [matches] =
+                await connection.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?
+                     FOR UPDATE`,
+                    [id]
+                );
+
+            if (
+                matches.length === 0
+            ) {
+
+                await connection.rollback();
+                connection.release();
+
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "Match not found"
+                });
+
+            }
+
+            const match =
+                matches[0];
+
+            /* -----------------------------------------
+               CHECK TEAM
+            ----------------------------------------- */
+
+            if (
+                event_type === "goal" ||
+                event_type === "yellow_card" ||
+                event_type === "red_card" ||
+                event_type === "substitution"
+            ) {
+
+                if (!team_id) {
+
+                    await connection.rollback();
+                    connection.release();
+
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Team is required for this event"
+                    });
+
+                }
+
+                const numericTeamId =
+                    Number(team_id);
+
+                if (
+                    numericTeamId !==
+                    Number(match.home_team_id) &&
+                    numericTeamId !==
+                    Number(match.away_team_id)
+                ) {
+
+                    await connection.rollback();
+                    connection.release();
+
+                    return res.status(400).json({
+                        success: false,
+                        message:
+                            "Team is not part of this match"
+                    });
+
+                }
+
+            }
+
+            /* -----------------------------------------
+               PLAYER NAME
+            ----------------------------------------- */
+
+            if (
+                !player_name ||
+                !player_name.trim()
+            ) {
+
+                await connection.rollback();
+                connection.release();
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Player name is required"
+                });
+
+            }
+
+            /* -----------------------------------------
+               MATCH STATUS CHECK
+            ----------------------------------------- */
+
+            if (
+                match.status !== "live" &&
+                match.status !== "half-time"
+            ) {
+
+                await connection.rollback();
+                connection.release();
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Events can only be added to a live or half-time match"
+                });
+
+            }
+
+            /* -----------------------------------------
+               INSERT EVENT
+            ----------------------------------------- */
+
+            const [eventResult] =
+                await connection.query(
+                    `INSERT INTO match_events
+                    (
+                        match_id,
+                        team_id,
+                        player_name,
+                        event_type,
+                        minute
+                    )
+                    VALUES (?, ?, ?, ?, ?)`,
+                    [
+                        id,
+                        team_id || null,
+                        player_name.trim(),
+                        event_type,
+                        numericMinute
+                    ]
+                );
+
+            /* -----------------------------------------
+               GOAL → UPDATE SCORE
+            ----------------------------------------- */
+
+            if (
+                event_type === "goal"
+            ) {
+
+                if (
+                    Number(team_id) ===
+                    Number(match.home_team_id)
+                ) {
+
+                    await connection.query(
+                        `UPDATE matches
+                         SET home_score =
+                             home_score + 1
+                         WHERE id = ?`,
+                        [id]
+                    );
+
+                } else if (
+                    Number(team_id) ===
+                    Number(match.away_team_id)
+                ) {
+
+                    await connection.query(
+                        `UPDATE matches
+                         SET away_score =
+                             away_score + 1
+                         WHERE id = ?`,
+                        [id]
+                    );
+
+                }
+
+            }
+
+            await connection.commit();
+
+            connection.release();
+
+            /* -----------------------------------------
+               GET UPDATED MATCH
+            ----------------------------------------- */
+
+            const [updatedMatches] =
+                await db.query(
+                    `SELECT *
+                     FROM matches
+                     WHERE id = ?`,
+                    [id]
+                );
+
+            const updatedMatch =
+                updatedMatches[0];
+
+            /* -----------------------------------------
+               GET EVENT
+            ----------------------------------------- */
+
+            const [events] =
+                await db.query(
+                    `SELECT *
+                     FROM match_events
+                     WHERE id = ?`,
+                    [eventResult.insertId]
+                );
+
+            const createdEvent =
+                events[0];
+
+            /* -----------------------------------------
+               SOCKET.IO
+            ----------------------------------------- */
+
+            io.emit(
+                "match_event",
+                {
+                    match:
+                        updatedMatch,
+                    event:
+                        createdEvent
+                }
+            );
+
+            io.emit(
+                "match_updated",
+                updatedMatch
+            );
+
+            res.status(201).json({
+                success: true,
+                message:
+                    "Match event added successfully",
+                match:
+                    updatedMatch,
+                event:
+                    createdEvent
+            });
+
+        } catch (error) {
+
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error(
+                    "Rollback error:",
+                    rollbackError
+                );
+            }
+
+            connection.release();
+
+            console.error(
+                "ADD MATCH EVENT ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message:
+                    error.message ||
+                    "Database error"
+            });
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   GET MATCH EVENTS
+========================================================= */
+
+app.get(
+    "/api/admin/matches/:id/events",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const [events] =
+                await db.query(
+                    `SELECT *
+                     FROM match_events
+                     WHERE match_id = ?
+                     ORDER BY minute ASC, id ASC`,
+                    [id]
+                );
+
+            res.json({
+                success: true,
+                events
+            });
+
+        } catch (error) {
+
+            console.error(
+                "GET MATCH EVENTS ERROR:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+/* =========================================================
+   SOCKET.IO
+========================================================= */
+
+io.on(
+    "connection",
+    (socket) => {
+
+        console.log(
+            "Viewer connected:",
+            socket.id
+        );
+
+        socket.on(
+            "disconnect",
+            () => {
+
+                console.log(
+                    "Viewer disconnected:",
+                    socket.id
+                );
+
+            }
+        );
+
+    }
+);
+
+/* =========================================================
+   SERVER
+========================================================= */
+
+const PORT =
+    process.env.PORT || 5000;
+
+// ======================================================
+// UPDATE MATCH CONTROL
+// ======================================================
+
+app.put(
+    "/api/admin/matches/:id",
+    authenticateAdmin,
+    async (req, res) => {
+
+        try {
+
+            const { id } = req.params;
+
+            const {
+                status,
+                minute,
+                home_score,
+                away_score
+            } = req.body;
+
+
+            const [matches] = await db.query(
+                "SELECT * FROM matches WHERE id = ?",
+                [id]
+            );
+
+
+            if (matches.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+
+            }
+
+
+            const match = matches[0];
+
+
+            const newStatus =
+                status !== undefined
+                    ? status
+                    : match.status;
+
+            const newMinute =
+                minute !== undefined
+                    ? Number(minute)
+                    : match.minute;
+
+            const newHomeScore =
+                home_score !== undefined
+                    ? Number(home_score)
+                    : match.home_score;
+
+            const newAwayScore =
+                away_score !== undefined
+                    ? Number(away_score)
+                    : match.away_score;
+
+
+            const allowedStatuses = [
+                "scheduled",
+                "live",
+                "half-time",
+                "finished",
+                "postponed"
+            ];
+
+
+            if (!allowedStatuses.includes(newStatus)) {
+
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid match status"
+                });
+
+            }
+
+
+            if (
+                Number.isNaN(newMinute) ||
+                newMinute < 0
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid match minute"
+                });
+
+            }
+
+
+            if (
+                Number.isNaN(newHomeScore) ||
+                Number.isNaN(newAwayScore) ||
+                newHomeScore < 0 ||
+                newAwayScore < 0
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid score"
+                });
+
+            }
+
+
+            await db.query(
+                `
+                UPDATE matches
+                SET
+                    status = ?,
+                    minute = ?,
+                    home_score = ?,
+                    away_score = ?
+                WHERE id = ?
+                `,
+                [
+                    newStatus,
+                    newMinute,
+                    newHomeScore,
+                    newAwayScore,
+                    id
+                ]
+            );
+
+
+            // Broadcast update to connected viewers
+            io.emit("matchUpdated", {
+                matchId: Number(id),
+                status: newStatus,
+                minute: newMinute,
+                home_score: newHomeScore,
+                away_score: newAwayScore
+            });
+
+
+            res.json({
+                success: true,
+                message: "Match updated successfully"
+            });
+
+
+        } catch (error) {
+
+            console.error(
+                "Update match error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        }
+
+    }
+);
+
+// ============================================================
+// STAGE 9.4 - MATCH EVENTS
+// ============================================================
+
+
+// ------------------------------------------------------------
+// GET ALL EVENTS FOR A MATCH
+// ------------------------------------------------------------
+
+app.get(
+    "/api/admin/matches/:id/events",
+    authenticateAdmin,
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const [matches] = await db.query(
+                "SELECT * FROM matches WHERE id = ?",
+                [id]
+            );
+
+            if (matches.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+            }
+
+            const [events] = await db.query(
+                `
+                SELECT
+                    me.id,
+                    me.match_id,
+                    me.team_id,
+                    me.player_name,
+                    me.event_type,
+                    me.minute,
+                    me.created_at,
+
+                    t.name AS team_name,
+                    t.logo AS team_logo
+
+                FROM match_events me
+
+                LEFT JOIN teams t
+                    ON me.team_id = t.id
+
+                WHERE me.match_id = ?
+
+                ORDER BY
+                    me.minute ASC,
+                    me.id ASC
+                `,
+                [id]
+            );
+
+            res.json({
+                success: true,
+                events
+            });
+
+        } catch (error) {
+            console.error(
+                "Get match events error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+        }
+    }
+);
+
+
+// ------------------------------------------------------------
+// ADD MATCH EVENT
+// ------------------------------------------------------------
+
+app.post(
+    "/api/admin/matches/:id/events",
+    authenticateAdmin,
+    async (req, res) => {
+        let connection;
+
+        try {
+            const { id } = req.params;
+
+            const {
+                team_id,
+                player_name,
+                event_type,
+                minute
+            } = req.body;
+
+
+            // ----------------------------------------
+            // VALIDATE EVENT TYPE
+            // ----------------------------------------
+
+            const allowedEventTypes = [
+                "goal",
+                "yellow_card",
+                "red_card",
+                "substitution"
+            ];
+
+            if (!allowedEventTypes.includes(event_type)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid event type"
+                });
+            }
+
+
+            // ----------------------------------------
+            // GET MATCH
+            // ----------------------------------------
+
+            const [matches] = await db.query(
+                "SELECT * FROM matches WHERE id = ?",
+                [id]
+            );
+
+            if (matches.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Match not found"
+                });
+            }
+
+            const match = matches[0];
+
+
+            // ----------------------------------------
+            // VALIDATE TEAM
+            // ----------------------------------------
+
+            if (!team_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Team is required"
+                });
+            }
+
+            const teamIdNumber = Number(team_id);
+
+            if (
+                teamIdNumber !==
+                    Number(match.home_team_id) &&
+                teamIdNumber !==
+                    Number(match.away_team_id)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Selected team is not part of this match"
+                });
+            }
+
+
+            // ----------------------------------------
+            // VALIDATE MINUTE
+            // ----------------------------------------
+
+            const eventMinute =
+                minute !== undefined &&
+                minute !== null &&
+                minute !== ""
+                    ? Number(minute)
+                    : Number(match.minute || 0);
+
+            if (
+                Number.isNaN(eventMinute) ||
+                eventMinute < 0
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid event minute"
+                });
+            }
+
+
+            // ----------------------------------------
+            // PLAYER NAME
+            // ----------------------------------------
+
+            const playerName =
+                player_name &&
+                String(player_name).trim()
+                    ? String(player_name).trim()
+                    : null;
+
+
+            // ----------------------------------------
+            // EVENT SHOULD ONLY BE CREATED DURING
+            // LIVE MATCH
+            // ----------------------------------------
+
+            if (
+                match.status !== "live" &&
+                match.status !== "half-time"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Match must be live to add events"
+                });
+            }
+
+
+            // ----------------------------------------
+            // DATABASE TRANSACTION
+            // ----------------------------------------
+
+            connection = await db.getConnection();
+
+            await connection.beginTransaction();
+
+
+            // ----------------------------------------
+            // INSERT EVENT
+            // ----------------------------------------
+
+            const [eventResult] =
+                await connection.query(
+                    `
+                    INSERT INTO match_events
+                    (
+                        match_id,
+                        team_id,
+                        player_name,
+                        event_type,
+                        minute
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    `,
+                    [
+                        id,
+                        teamIdNumber,
+                        playerName,
+                        event_type,
+                        eventMinute
+                    ]
+                );
+
+
+            // ----------------------------------------
+            // IF GOAL → UPDATE SCORE
+            // ----------------------------------------
+
+            let newHomeScore =
+                Number(match.home_score || 0);
+
+            let newAwayScore =
+                Number(match.away_score || 0);
+
+
+            if (event_type === "goal") {
+
+                if (
+                    teamIdNumber ===
+                    Number(match.home_team_id)
+                ) {
+                    newHomeScore++;
+                }
+
+                if (
+                    teamIdNumber ===
+                    Number(match.away_team_id)
+                ) {
+                    newAwayScore++;
+                }
+
+
+                await connection.query(
+                    `
+                    UPDATE matches
+
+                    SET
+                        home_score = ?,
+                        away_score = ?
+
+                    WHERE id = ?
+                    `,
+                    [
+                        newHomeScore,
+                        newAwayScore,
+                        id
+                    ]
+                );
+            }
+
+
+            await connection.commit();
+
+
+            // ----------------------------------------
+            // GET CREATED EVENT WITH TEAM INFO
+            // ----------------------------------------
+
+            const [createdEvents] =
+                await db.query(
+                    `
+                    SELECT
+                        me.id,
+                        me.match_id,
+                        me.team_id,
+                        me.player_name,
+                        me.event_type,
+                        me.minute,
+                        me.created_at,
+
+                        t.name AS team_name,
+                        t.logo AS team_logo
+
+                    FROM match_events me
+
+                    LEFT JOIN teams t
+                        ON me.team_id = t.id
+
+                    WHERE me.id = ?
+                    `,
+                    [eventResult.insertId]
+                );
+
+
+            const createdEvent =
+                createdEvents[0];
+
+
+            // ----------------------------------------
+            // SOCKET.IO - EVENT
+            // ----------------------------------------
+
+            io.emit("matchEvent", {
+                matchId: Number(id),
+                event: createdEvent
+            });
+
+
+            // ----------------------------------------
+            // SOCKET.IO - UPDATED SCORE
+            // ----------------------------------------
+
+            io.emit("matchUpdated", {
+                matchId: Number(id),
+
+                status: match.status,
+
+                minute: Number(match.minute || 0),
+
+                home_score: newHomeScore,
+
+                away_score: newAwayScore
+            });
+
+
+            res.json({
+                success: true,
+
+                message:
+                    "Match event added successfully",
+
+                event: createdEvent,
+
+                home_score: newHomeScore,
+
+                away_score: newAwayScore
+            });
+
+        } catch (error) {
+
+            if (connection) {
+                try {
+                    await connection.rollback();
+                } catch (rollbackError) {
+                    console.error(
+                        "Rollback error:",
+                        rollbackError
+                    );
+                }
+            }
+
+            console.error(
+                "Add match event error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        } finally {
+
+            if (connection) {
+                connection.release();
+            }
+        }
+    }
+);
+
+// ------------------------------------------------------------
+// DELETE MATCH EVENT
+// ------------------------------------------------------------
+
+app.delete(
+    "/api/admin/matches/events/:eventId",
+    authenticateAdmin,
+    async (req, res) => {
+        let connection;
+
+        try {
+            const { eventId } = req.params;
+
+
+            // ----------------------------------------
+            // GET EVENT
+            // ----------------------------------------
+
+            const [events] = await db.query(
+                `
+                SELECT
+                    me.*,
+                    m.home_team_id,
+                    m.away_team_id,
+                    m.home_score,
+                    m.away_score
+
+                FROM match_events me
+
+                INNER JOIN matches m
+                    ON me.match_id = m.id
+
+                WHERE me.id = ?
+                `,
+                [eventId]
+            );
+
+
+            if (events.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Event not found"
+                });
+            }
+
+
+            const event = events[0];
+
+
+            // ----------------------------------------
+            // TRANSACTION
+            // ----------------------------------------
+
+            connection = await db.getConnection();
+
+            await connection.beginTransaction();
+
+
+            // ----------------------------------------
+            // IF GOAL → DECREASE SCORE
+            // ----------------------------------------
+
+            let newHomeScore =
+                Number(event.home_score || 0);
+
+            let newAwayScore =
+                Number(event.away_score || 0);
+
+
+            if (event.event_type === "goal") {
+
+                if (
+                    Number(event.team_id) ===
+                    Number(event.home_team_id)
+                ) {
+                    newHomeScore =
+                        Math.max(
+                            0,
+                            newHomeScore - 1
+                        );
+                }
+
+
+                if (
+                    Number(event.team_id) ===
+                    Number(event.away_team_id)
+                ) {
+                    newAwayScore =
+                        Math.max(
+                            0,
+                            newAwayScore - 1
+                        );
+                }
+
+
+                await connection.query(
+                    `
+                    UPDATE matches
+
+                    SET
+                        home_score = ?,
+                        away_score = ?
+
+                    WHERE id = ?
+                    `,
+                    [
+                        newHomeScore,
+                        newAwayScore,
+                        event.match_id
+                    ]
+                );
+            }
+
+
+            // ----------------------------------------
+            // DELETE EVENT
+            // ----------------------------------------
+
+            await connection.query(
+                `
+                DELETE FROM match_events
+                WHERE id = ?
+                `,
+                [eventId]
+            );
+
+
+            await connection.commit();
+
+
+            // ----------------------------------------
+            // SOCKET.IO
+            // ----------------------------------------
+
+            io.emit("matchEventDeleted", {
+                matchId:
+                    Number(event.match_id),
+
+                eventId:
+                    Number(eventId)
+            });
+
+
+            io.emit("matchUpdated", {
+                matchId:
+                    Number(event.match_id),
+
+                home_score:
+                    newHomeScore,
+
+                away_score:
+                    newAwayScore
+            });
+
+
+            res.json({
+                success: true,
+
+                message:
+                    "Match event deleted successfully",
+
+                home_score:
+                    newHomeScore,
+
+                away_score:
+                    newAwayScore
+            });
+
+        } catch (error) {
+
+            if (connection) {
+                try {
+                    await connection.rollback();
+                } catch (rollbackError) {
+                    console.error(
+                        "Rollback error:",
+                        rollbackError
+                    );
+                }
+            }
+
+            console.error(
+                "Delete match event error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message: "Database error"
+            });
+
+        } finally {
+
+            if (connection) {
+                connection.release();
+            }
+        }
+    }
+);
+
+server.listen(
+    PORT,
+    () => {
+
+        console.log(
+            `Football League server running on port ${PORT}`
+        );
+
+    }
+);

@@ -1,0 +1,80 @@
+/* =========================================================
+   KOCHERI SUPER LEAGUE
+   GLOBAL STYLES
+   ========================================================= */
+
+:root {
+  --ksl-black: #070b12;
+  --ksl-dark: #0b1220;
+  --ksl-dark-2: #111827;
+
+  --ksl-gold: #f5b942;
+  --ksl-gold-light: #ffd76a;
+  --ksl-gold-dark: #c88a16;
+
+  --ksl-white: #ffffff;
+  --ksl-text: #e5e7eb;
+  --ksl-muted: #94a3b8;
+
+  --ksl-green: #16a34a;
+  --ksl-red: #dc2626;
+
+  --ksl-border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background: var(--ksl-black);
+  color: var(--ksl-text);
+
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
