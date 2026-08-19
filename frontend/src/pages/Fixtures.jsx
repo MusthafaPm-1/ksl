@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 function Fixtures() {
   const [matches, setMatches] = useState([]);
@@ -11,10 +12,9 @@ function Fixtures() {
 
   async function fetchFixtures() {
     try {
-      const response = await axios.get("http://localhost:5000/api/matches");
+      const response = await axios.get(`${API_BASE_URL}/api/matches`);
       const allMatches = response.data.matches || response.data || [];
 
-      // Safe normalized filter: include matches that are scheduled / upcoming
       const scheduledMatches = allMatches.filter((match) => {
         const s = (match.status || "").toLowerCase().replace(/[-_\s]/g, "");
         return s === "scheduled" || s === "upcoming" || s === "pending" || s === "";
@@ -66,7 +66,7 @@ function Fixtures() {
                   <div className="match-team">
                     {match.home_team_logo && (
                       <img
-                        src={`http://localhost:5000${match.home_team_logo}`}
+                        src={`${API_BASE_URL}${match.home_team_logo}`}
                         alt=""
                         onError={(e) => {
                           e.target.style.display = "none";
@@ -81,7 +81,7 @@ function Fixtures() {
                   <div className="match-team">
                     {match.away_team_logo && (
                       <img
-                        src={`http://localhost:5000${match.away_team_logo}`}
+                        src={`${API_BASE_URL}${match.away_team_logo}`}
                         alt=""
                         onError={(e) => {
                           e.target.style.display = "none";

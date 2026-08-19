@@ -27,16 +27,13 @@ function AdminTeams() {
   }, [navigate]);
 
   async function fetchTeams() {
-    try {
-      setLoading(true);
-      const response = await axios.get("http://localhost:5000/api/teams");
-      setTeams(response.data.teams || []);
-    } catch (err) {
-      console.error("Error loading teams:", err);
-      setError("Failed to load teams from server.");
-    } finally {
-      setLoading(false);
-    }
+    import { API_BASE_URL } from "../../config/api";
+
+// Fetching teams:
+const response = await axios.get(`${API_BASE_URL}/api/teams`);
+
+// Team logos:
+<img src={`${API_BASE_URL}${team.logo}`} alt={team.name} />
   }
 
   async function handleAddTeam(e) {

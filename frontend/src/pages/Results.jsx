@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 function Results() {
   const [matches, setMatches] = useState([]);
@@ -12,11 +13,13 @@ function Results() {
 
   async function fetchResults() {
     try {
-      const response = await axios.get("http://localhost:5000/api/matches");
+      const response = await axios.get(`${API_BASE_URL}/api/matches`);
+      const allMatches = response.data.matches || response.data || [];
 
-      const completedMatches = response.data.matches.filter(
-        (match) => match.status === "completed"
-      );
+      const completedMatches = allMatches.filter((match) => {
+        const s = (match.status || "").toLowerCase().replace(/[-_\s]/g, "");
+        return s === "completed" || s === "finished" || s === "ft";
+      });
 
       setMatches(completedMatches);
     } catch (error) {
@@ -60,10 +63,13 @@ function Results() {
 
                 <div className="match-teams">
                   <div className="match-team">
-                    <img
-                      src={`http://localhost:5000${match.home_team_logo}`}
-                      alt={`${match.home_team_name} logo`}
-                    />
+                    {match.home_team_logo && (
+                      <img
+                        src={`${API_BASE_URL}${match.home_team_logo}`}
+                        alt=""
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    )}
                     <span className="team-name">{match.home_team_name}</span>
                   </div>
 
@@ -74,23 +80,26 @@ function Results() {
                   </div>
 
                   <div className="match-team">
-                    <img
-                      src={`http://localhost:5000${match.away_team_logo}`}
-                      alt={`${match.away_team_name} logo`}
-                    />
+                    {match.away_team_logo && (
+                      <img
+                        src={`${API_BASE_URL}${match.away_team_logo}`}
+                        alt=""
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    )}
                     <span className="team-name">{match.away_team_name}</span>
                   </div>
                 </div>
 
-                <div className="match-footer">
-                  {match.venue && (
-                    <span className="match-venue">📍 {match.venue}</span>
-                  )}
+                <div className="match-footer" style={{ marginTop: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="match-venue" style={{ fontSize: "0.85rem", color: "#888" }}>
+                    📍 {match.venue || "KSL Main Stadium"}
+                  </span>
                   <Link
                     to={`/match/${match.id}`}
                     className="btn btn-secondary btn-sm"
                   >
-                    Match Details
+                    Match Details →
                   </Link>
                 </div>
               </div>

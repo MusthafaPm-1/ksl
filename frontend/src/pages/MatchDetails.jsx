@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import io from "socket.io-client";
+import { API_BASE_URL } from "../config/api";
 
 let socket;
 
@@ -16,8 +17,7 @@ function MatchDetails() {
     if (id) {
       fetchMatchDetails();
 
-      // Listen for real-time live events and score changes
-      socket = io("http://localhost:5000");
+      socket = io(API_BASE_URL);
 
       socket.on("matchUpdate", (updatedMatch) => {
         if (updatedMatch && updatedMatch.id === parseInt(id)) {
@@ -44,7 +44,7 @@ function MatchDetails() {
     try {
       setLoading(true);
       setError("");
-      const response = await axios.get(`http://localhost:5000/api/matches/${id}`);
+      const response = await axios.get(`${API_BASE_URL}/api/matches/${id}`);
       const matchData = response.data.match || response.data;
       if (matchData) {
         setMatch(matchData);
@@ -81,7 +81,8 @@ function MatchDetails() {
     if (s === "completed" || s === "finished" || s === "ft") return <span className="status-badge status-completed">FULL TIME</span>;
     return <span className="status-badge status-scheduled">SCHEDULED</span>;
   }
-    return (
+
+  return (
     <div className="page">
       <div className="section">
         <div className="section-nav" style={{ marginBottom: "1.5rem" }}>
@@ -121,7 +122,7 @@ function MatchDetails() {
                 <div className="match-details-logo">
                   {match.home_team_logo ? (
                     <img
-                      src={`http://localhost:5000${match.home_team_logo}`}
+                      src={`${API_BASE_URL}${match.home_team_logo}`}
                       alt={`${match.home_team_name} logo`}
                       onError={(e) => { e.target.style.display = "none"; }}
                     />
@@ -150,7 +151,7 @@ function MatchDetails() {
                 <div className="match-details-logo">
                   {match.away_team_logo ? (
                     <img
-                      src={`http://localhost:5000${match.away_team_logo}`}
+                      src={`${API_BASE_URL}${match.away_team_logo}`}
                       alt={`${match.away_team_name} logo`}
                       onError={(e) => { e.target.style.display = "none"; }}
                     />
@@ -185,7 +186,7 @@ function MatchDetails() {
               </div>
             </div>
 
-            {/* MATCH EVENTS & TIMELINE CARD */}
+            {/* Timeline (Newest first) */}
             <div className="match-info-card" style={{ marginTop: "1.5rem" }}>
               <h3>Match Events & Timeline</h3>
               {events.length === 0 ? (
@@ -194,43 +195,42 @@ function MatchDetails() {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "1rem" }}>
-                  {/* Reverse so the newest event appears on top */}
-{[...events].reverse().map((ev, i) => {
-  const isHome = ev.team_id === match.home_team_id;
-  return (
-    <div
-      key={ev.id || i}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 16px",
-        background: "#121212",
-        border: "1px solid #282828",
-        borderRadius: "8px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <span style={{ color: "var(--accent-gold, #c9a84b)", fontWeight: 700, minWidth: "35px" }}>
-          {ev.minute}'
-        </span>
-        <span style={{ color: "#ffffff", fontWeight: 600 }}>
-          {ev.event_type === "goal"
-            ? "⚽ Goal"
-            : ev.event_type === "yellow_card"
-            ? "🟨 Yellow Card"
-            : ev.event_type === "red_card"
-            ? "🟥 Red Card"
-            : "🔄 Substitution"}
-        </span>
-        <span style={{ color: "#d0d0d0" }}>— {ev.player_name}</span>
-      </div>
-      <span style={{ fontSize: "0.8rem", color: "#888", textTransform: "uppercase" }}>
-        {isHome ? match.home_team_name : match.away_team_name}
-      </span>
-    </div>
-  );
-})}
+                  {[...events].reverse().map((ev, i) => {
+                    const isHome = ev.team_id === match.home_team_id;
+                    return (
+                      <div
+                        key={ev.id || i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 16px",
+                          background: "#121212",
+                          border: "1px solid #282828",
+                          borderRadius: "8px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <span style={{ color: "var(--accent-gold, #c9a84b)", fontWeight: 700, minWidth: "35px" }}>
+                            {ev.minute}'
+                          </span>
+                          <span style={{ color: "#ffffff", fontWeight: 600 }}>
+                            {ev.event_type === "goal"
+                              ? "⚽ Goal"
+                              : ev.event_type === "yellow_card"
+                              ? "🟨 Yellow Card"
+                              : ev.event_type === "red_card"
+                              ? "🟥 Red Card"
+                              : "🔄 Substitution"}
+                          </span>
+                          <span style={{ color: "#d0d0d0" }}>— {ev.player_name}</span>
+                        </div>
+                        <span style={{ fontSize: "0.8rem", color: "#888", textTransform: "uppercase" }}>
+                          {isHome ? match.home_team_name : match.away_team_name}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

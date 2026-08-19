@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 function Teams() {
   const [teams, setTeams] = useState([]);
@@ -12,7 +13,7 @@ function Teams() {
 
   async function fetchTeams() {
     try {
-      const response = await axios.get("http://localhost:5000/api/teams");
+      const response = await axios.get(`${API_BASE_URL}/api/teams`);
       setTeams(response.data.teams || []);
     } catch (err) {
       console.error("Error loading teams:", err);
@@ -46,7 +47,7 @@ function Teams() {
                 <div className="team-logo">
                   {team.logo ? (
                     <img
-                      src={`http://localhost:5000${team.logo}`}
+                      src={`${API_BASE_URL}${team.logo}`}
                       alt={`${team.name} logo`}
                       onError={(e) => {
                         e.target.style.display = "none";
