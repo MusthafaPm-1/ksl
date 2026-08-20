@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../config/api";
 
 function AdminMatches() {
   const [matches, setMatches] = useState([]);
@@ -23,7 +24,7 @@ function AdminMatches() {
   async function fetchMatches() {
     setLoading(true);
     try {
-      const response = await axios.get("http://localhost:5000/api/matches");
+      const response = await axios.get(`${API_BASE_URL}/api/matches`);
       setMatches(response.data.matches || []);
     } catch (err) {
       console.error("Error loading matches:", err);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../config/api";  
 
 function AdminFixtures() {
   const [fixtures, setFixtures] = useState([]);
@@ -29,9 +30,10 @@ function AdminFixtures() {
     setLoading(true);
     try {
       const [matchesRes, teamsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/matches"),
-        axios.get("http://localhost:5000/api/teams"),
-      ]);
+  axios.get(`${API_BASE_URL}/api/matches`),
+  axios.get(`${API_BASE_URL}/api/teams`),
+]);
+
 
       const scheduledMatches = (matchesRes.data.matches || []).filter(
         (m) => m.status === "scheduled"
@@ -61,8 +63,7 @@ function AdminFixtures() {
     const token = localStorage.getItem("adminToken");
 
     try {
-      const response = await axios.post(
-        "http://localhost:5000/api/admin/matches",
+      await axios.post(`${API_BASE_URL}/api/admin/matches`,
         {
           home_team_id: homeTeamId,
           away_team_id: awayTeamId,
@@ -101,8 +102,7 @@ function AdminFixtures() {
     const token = localStorage.getItem("adminToken");
 
     try {
-      const response = await axios.delete(
-        `http://localhost:5000/api/admin/matches/${matchId}`,
+      await axios.delete(`${API_BASE_URL}/api/admin/matches/${matchId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
