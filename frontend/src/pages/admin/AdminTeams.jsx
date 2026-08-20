@@ -27,7 +27,7 @@ function AdminTeams() {
   }, [navigate]);
 
   async function fetchTeams() {
-    import { API_BASE_URL } from "../../config/api";
+    
 
 // Fetching teams:
 const response = await axios.get(`${API_BASE_URL}/api/teams`);
