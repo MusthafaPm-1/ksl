@@ -10,23 +10,38 @@ const jwt = require("jsonwebtoken");
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO Setup with CORS
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || "ksl_secret_key_2026";
+
+// Allowed origins for both local dev and production Vercel frontend
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ksl-live.vercel.app",
+];
+
+// 1. Express CORS
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
+
+// 2. Socket.IO CORS Setup
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
   },
 });
 
-const JWT_SECRET = "ksl_secret_key_2026";
-const PORT = process.env.PORT || 5000;
-
-// Standard Middlewares
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Multer Storage Configuration for Team Logos
+// Multer Storage Configuration for Logos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
@@ -38,12 +53,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// MySQL Connection Pool (Adjust credentials to match your MySQL setup)
+// MySQL Connection Pool (Uses environment variables in production with fallback)
 const pool = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "football_league",
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "football_league",
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -61,7 +77,8 @@ function verifyAdminToken(req, res, next) {
     req.admin = decoded;
     next();
   } catch (err) {
-    return res.status(403).json({ message: "Invalid or expired token" });
+    console.error("JWT verification failed:", err.message);
+    return res.status(403).json({ message: "Invalid or expired admin session. Please log in again." });
   }
 }
 // ==========================================
@@ -98,8 +115,7 @@ app.get("/api/matches", async (req, res) => {
   }
 });
 
-// Handler function for fetching single match
-// Handler function for fetching single match with its recorded events
+// Single match by ID handler (with events)
 async function getSingleMatch(req, res) {
   try {
     const matchId = req.params.id;
@@ -123,15 +139,13 @@ async function getSingleMatch(req, res) {
 
     const match = rows[0];
 
-    // Fetch recorded match events from MySQL
     try {
       const [events] = await pool.query(
         "SELECT * FROM match_events WHERE match_id = ? ORDER BY minute ASC, id ASC",
         [matchId]
       );
       match.events = events || [];
-    } catch (err) {
-      console.warn("Could not query match_events:", err.message);
+    } catch (_) {
       match.events = [];
     }
 
@@ -142,8 +156,6 @@ async function getSingleMatch(req, res) {
   }
 }
 
-
-// Register both plural and singular endpoints:
 app.get("/api/matches/:id", getSingleMatch);
 app.get("/api/match/:id", getSingleMatch);
 
@@ -154,7 +166,6 @@ app.get("/api/match/:id", getSingleMatch);
 // Admin Login
 app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
-  // Simple check (or query from admins table)
   if (username === "admin" && password === "admin123") {
     const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "24h" });
     return res.json({
@@ -241,7 +252,6 @@ app.put("/api/admin/matches/:id/score", verifyAdminToken, async (req, res) => {
       [home_score, away_score, matchId]
     );
 
-    // Fetch full match object to broadcast
     const [rows] = await pool.query(`
       SELECT m.*, 
              h.name AS home_team_name, h.logo AS home_team_logo,
@@ -262,7 +272,35 @@ app.put("/api/admin/matches/:id/score", verifyAdminToken, async (req, res) => {
   }
 });
 
-// End Match (Mark Full Time)
+// Update Status (Live, Halftime, Completed)
+app.put("/api/admin/matches/:id/status", verifyAdminToken, async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    const { status } = req.body;
+
+    await pool.query("UPDATE matches SET status = ? WHERE id = ?", [status, matchId]);
+
+    const [rows] = await pool.query(`
+      SELECT m.*, 
+             h.name AS home_team_name, h.logo AS home_team_logo,
+             a.name AS away_team_name, a.logo AS away_team_logo
+      FROM matches m
+      JOIN teams h ON m.home_team_id = h.id
+      JOIN teams a ON m.away_team_id = a.id
+      WHERE m.id = ?
+    `, [matchId]);
+
+    if (rows.length > 0) {
+      io.emit("matchUpdate", rows[0]);
+    }
+
+    res.json({ success: true, status });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// End Match (Full Time)
 app.put("/api/admin/matches/:id/end", verifyAdminToken, async (req, res) => {
   try {
     const matchId = req.params.id;
@@ -288,36 +326,7 @@ app.put("/api/admin/matches/:id/end", verifyAdminToken, async (req, res) => {
   }
 });
 
-// Toggle Half Time / Resume 2nd Half
-app.put("/api/admin/matches/:id/status", verifyAdminToken, async (req, res) => {
-  try {
-    const matchId = req.params.id;
-    const { status } = req.body; // 'live', 'halftime', or 'completed'
-
-    await pool.query("UPDATE matches SET status = ? WHERE id = ?", [status, matchId]);
-
-    // Broadcast updated status via Socket.IO
-    const [rows] = await pool.query(`
-      SELECT m.*, 
-             h.name AS home_team_name, h.logo AS home_team_logo,
-             a.name AS away_team_name, a.logo AS away_team_logo
-      FROM matches m
-      JOIN teams h ON m.home_team_id = h.id
-      JOIN teams a ON m.away_team_id = a.id
-      WHERE m.id = ?
-    `, [matchId]);
-
-    if (rows.length > 0) {
-      io.emit("matchUpdate", rows[0]);
-    }
-
-    res.json({ success: true, status });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Log Match Event (Goals, Cards, Substitutions) + Broadcast
+// Add Match Event (Goals, Cards, Substitutions)
 app.post("/api/admin/matches/:id/events", verifyAdminToken, async (req, res) => {
   try {
     const matchId = req.params.id;
@@ -356,36 +365,6 @@ app.post("/api/admin/matches/:id/events", verifyAdminToken, async (req, res) => 
     console.error("Error logging match event:", err);
     res.status(500).json({ message: err.message });
   }
-});
-
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://ksl-live.vercel.app",
-];
-
-// 1. Express CORS
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
-
-// 2. Socket.IO CORS
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  },
 });
 
 // Start Server
