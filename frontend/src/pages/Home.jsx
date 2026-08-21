@@ -34,7 +34,7 @@ function Home() {
           <p>No upcoming matches.</p>
         </div>
 
-        <div className="hero-buttons">
+        <div>
           <Link to="/teams" className="btn btn-secondary">
             View Teams
           </Link>
