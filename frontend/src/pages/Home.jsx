@@ -16,6 +16,20 @@ function Home() {
           <a href="/fixtures" className="btn btn-secondary">
             View Fixtures
           </a>
+          import { Link } from "react-router-dom";
+
+// Inside your Home component JSX:
+<div className="hero-buttons">
+  <Link to="/live" className="btn btn-primary">
+    View Live Matches
+  </Link>
+  <Link to="/fixtures" className="btn btn-secondary">
+    View Fixtures
+  </Link>
+  <Link to="/teams" className="btn btn-secondary">
+    View Teams
+  </Link>
+</div>
         </div>
       </section>
 
