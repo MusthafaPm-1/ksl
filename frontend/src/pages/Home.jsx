@@ -52,7 +52,15 @@ function Home() {
 
   return (
     <div className="page home-page">
-      {/* 1. LIVE MATCHES SECTION */}
+      {/* 1. HERO SECTION */}
+      <section className="hero">
+        <h1>Kocheri Super League</h1>
+        <p>
+          Follow live scores, fixtures, results, standings and teams.
+        </p>
+      </section>
+
+      {/* 2. LIVE MATCHES SECTION */}
       <section className="section">
         <h2>Live Matches</h2>
 
@@ -110,7 +118,7 @@ function Home() {
         )}
       </section>
 
-      {/* 2. UPCOMING MATCHES SECTION */}
+      {/* 3. UPCOMING MATCHES SECTION */}
       <section className="section">
         <h2>Upcoming Matches</h2>
 
@@ -165,7 +173,7 @@ function Home() {
         )}
       </section>
 
-      {/* 3. TEAMS SECTION */}
+      {/* 4. TEAMS SECTION */}
       <section className="section">
         <h2>Teams</h2>
 
