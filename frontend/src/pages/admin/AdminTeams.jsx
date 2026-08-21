@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../../config/api";
 
 function AdminTeams() {
   const [teams, setTeams] = useState([]);
@@ -27,13 +28,17 @@ function AdminTeams() {
   }, [navigate]);
 
   async function fetchTeams() {
-    
-
-// Fetching teams:
-const response = await axios.get(`${API_BASE_URL}/api/teams`);
-
-// Team logos:
-<img src={`${API_BASE_URL}${team.logo}`} alt={team.name} />
+    try {
+      setLoading(true);
+      setError("");
+      const response = await axios.get(`${API_BASE_URL}/api/teams`);
+      setTeams(response.data.teams || []);
+    } catch (err) {
+      console.error("Error loading teams:", err);
+      setError("Failed to load teams from server.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAddTeam(e) {
@@ -52,7 +57,7 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/admin/teams",
+        `${API_BASE_URL}/api/admin/teams`,
         formData,
         {
           headers: {
@@ -100,7 +105,7 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
 
     try {
       const response = await axios.put(
-        `http://localhost:5000/api/admin/teams/${teamId}`,
+        `${API_BASE_URL}/api/admin/teams/${teamId}`,
         {
           name: editName,
           short_name: editShortName,
@@ -134,7 +139,7 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
 
     try {
       const response = await axios.delete(
-        `http://localhost:5000/api/admin/teams/${teamId}`,
+        `${API_BASE_URL}/api/admin/teams/${teamId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -302,7 +307,7 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
                       <td className="team-cell">
                         {team.logo && (
                           <img
-                            src={`http://localhost:5000${team.logo}`}
+                            src={`${API_BASE_URL}${team.logo}`}
                             alt={`${team.name} logo`}
                             className="team-table-logo"
                             onError={(e) => {
@@ -327,16 +332,12 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
                           <input
                             type="text"
                             value={editShortName}
-                            onChange={(e) =>
-                              setEditShortName(e.target.value.toUpperCase())
-                            }
+                            onChange={(e) => setEditShortName(e.target.value.toUpperCase())}
                             maxLength={5}
                             className="inline-edit-input"
                           />
                         ) : (
-                          <span className="team-short-name">
-                            {team.short_name}
-                          </span>
+                          <span className="team-short-name">{team.short_name}</span>
                         )}
                       </td>
 
@@ -370,9 +371,7 @@ const response = await axios.get(`${API_BASE_URL}/api/teams`);
                             </button>
                             <button
                               className="btn btn-danger-outline btn-sm"
-                              onClick={() =>
-                                handleDeleteTeam(team.id, team.name)
-                              }
+                              onClick={() => handleDeleteTeam(team.id, team.name)}
                             >
                               Delete
                             </button>
