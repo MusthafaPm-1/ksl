@@ -33,12 +33,6 @@ function Home() {
         <div className="empty-card">
           <p>No upcoming matches.</p>
         </div>
-
-        <div>
-          <Link to="/teams" className="btn btn-secondary">
-            View Teams
-          </Link>
-        </div>
       </section>
     </div>
   );
