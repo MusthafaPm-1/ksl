@@ -11,6 +11,10 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 KSL Backend & Socket.IO running on port ${PORT}`);
+});
 const JWT_SECRET = process.env.JWT_SECRET || "ksl_secret_key_2026";
 
 // Allowed origins for both local dev and production Vercel frontend
