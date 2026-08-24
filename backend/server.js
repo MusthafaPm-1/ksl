@@ -20,7 +20,7 @@ const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 5000;
 
 const JWT_SECRET =
-  process.env.JWT_SECRET || "ksl_secret_key_2026";
+  process.env.JWT_SECRET || "football_league_super_secret_2026";
 
 // ==========================================
 // CORS
