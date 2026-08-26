@@ -30,16 +30,25 @@ function Fixtures() {
 
   function formatMatchDate(dateString) {
     if (!dateString) return "Date & Time TBD";
+
+    // Fixtures are scheduled as local stadium time. Read the stored values as
+    // UTC components so the browser does not add the viewer's timezone offset.
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-GB", {
+    if (Number.isNaN(date.getTime())) return "Date & Time TBD";
+
+    const datePart = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "UTC",
       weekday: "short",
       day: "numeric",
       month: "short",
       year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
+    }).format(date);
+    const hour = date.getUTCHours();
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+
+    return `${datePart}, ${displayHour}:${minute} ${period}`;
   }
 
   return (
@@ -58,45 +67,28 @@ function Fixtures() {
         ) : (
           <div className="matches-list">
             {matches.map((match) => (
-              <div className="match-card" key={match.id}>
-                <div className="match-date">
-                  📅 {formatMatchDate(match.match_date)}
-                </div>
-
-                <div className="match-teams">
-                  <div className="match-team">
+              <article className="fixture-card" key={match.id}>
+                <div className="fixture-card__teams">
+                  <div className="fixture-card__team">
                     {match.home_team_logo && (
-                      <img
-                        src={`${API_BASE_URL}${match.home_team_logo}`}
-                        alt=""
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
+                      <img src={`${API_BASE_URL}${match.home_team_logo}`} alt="" onError={(e) => { e.target.style.display = "none"; }} />
                     )}
-                    <span className="team-name">{match.home_team_name}</span>
+                    <span>{match.home_team_name}</span>
                   </div>
-
-                  <div className="match-vs">VS</div>
-
-                  <div className="match-team">
+                  <div className="fixture-card__vs" aria-label="versus">VS</div>
+                  <div className="fixture-card__team">
                     {match.away_team_logo && (
-                      <img
-                        src={`${API_BASE_URL}${match.away_team_logo}`}
-                        alt=""
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
+                      <img src={`${API_BASE_URL}${match.away_team_logo}`} alt="" onError={(e) => { e.target.style.display = "none"; }} />
                     )}
-                    <span className="team-name">{match.away_team_name}</span>
+                    <span>{match.away_team_name}</span>
                   </div>
                 </div>
-
-                <div className="match-venue">
-                  📍 {match.venue || "KSL Main Stadium"}
+                <div className="fixture-card__details">
+                  <div className="fixture-card__date">{formatMatchDate(match.match_date)}</div>
+                  <div className="fixture-card__competition">Kocheri Super League</div>
+                  <div className="fixture-card__venue">📍 {match.venue || "KSL Main Stadium"}</div>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}

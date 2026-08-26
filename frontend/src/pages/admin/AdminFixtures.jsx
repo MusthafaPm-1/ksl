@@ -128,16 +128,23 @@ function AdminFixtures() {
 
   function formatDateTime(dateStr) {
     if (!dateStr) return "TBD";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-GB", {
+
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "TBD";
+
+    const datePart = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "UTC",
       weekday: "short",
       day: "numeric",
       month: "short",
       year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
+    }).format(date);
+    const hour = date.getUTCHours();
+    const minute = String(date.getUTCMinutes()).padStart(2, "0");
+    const period = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+
+    return `${datePart}, ${displayHour}:${minute} ${period}`;
   }
 
   return (
