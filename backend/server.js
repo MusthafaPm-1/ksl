@@ -712,6 +712,79 @@ app.post(
 );
 
 // ==========================================
+// ADMIN - UPDATE FIXTURE
+// ==========================================
+
+app.put(
+  "/api/admin/matches/:id",
+  verifyAdminToken,
+
+  async (req, res) => {
+    try {
+      const {
+        home_team_id,
+        away_team_id,
+        match_date,
+        venue,
+      } = req.body;
+
+      if (
+        !home_team_id ||
+        !away_team_id ||
+        !match_date ||
+        home_team_id === away_team_id
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Provide two different teams and a match date.",
+        });
+      }
+
+      const [result] = await pool.query(
+        `
+        UPDATE matches
+        SET
+          home_team_id = ?,
+          away_team_id = ?,
+          match_date = ?,
+          venue = ?
+        WHERE id = ? AND status = 'scheduled'
+        `,
+        [
+          home_team_id,
+          away_team_id,
+          match_date,
+          venue || "KSL Main Stadium",
+          req.params.id,
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Scheduled fixture not found.",
+        });
+      }
+
+      res.json({
+        success: true,
+        matchId: Number(req.params.id),
+      });
+    } catch (error) {
+      console.error(
+        "UPDATE FIXTURE ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
 // ADMIN - DELETE MATCH
 // ==========================================
 
