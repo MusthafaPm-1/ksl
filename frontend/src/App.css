@@ -1807,3 +1807,143 @@ textarea:focus {
     margin-bottom: 1.75rem;
   }
 }
+
+/* =========================================
+   Site-wide Motion System
+   ========================================= */
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes ksl-nav-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ksl-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ksl-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ksl-badge-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.ksl-navbar {
+  animation: ksl-nav-drop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page,
+.admin-main {
+  animation: ksl-page-enter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page .section,
+.admin-main > * {
+  animation: ksl-card-reveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page .section:nth-of-type(2),
+.admin-main > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.page .section:nth-of-type(3),
+.admin-main > *:nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.page .section:nth-of-type(4),
+.admin-main > *:nth-child(4) {
+  animation-delay: 0.24s;
+}
+
+.match-team img {
+  animation: ksl-badge-float 3.2s ease-in-out infinite;
+}
+
+.ksl-nav-link,
+.btn,
+.match-card,
+.empty-card,
+.admin-card,
+.team-card,
+.match-info-card,
+.standings-table tbody tr {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+@media (hover: hover) {
+  .ksl-nav-link:hover,
+  .btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .match-card:hover,
+  .empty-card:hover,
+  .admin-card:hover,
+  .team-card:hover,
+  .match-info-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(201, 168, 75, 0.55);
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3);
+  }
+
+  .standings-table tbody tr:hover {
+    transform: translateX(4px);
+  }
+
+  .match-team img:hover {
+    animation-play-state: paused;
+    transform: scale(1.08) rotate(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
