@@ -14,6 +14,7 @@ function AdminFixtures() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [editingFixture, setEditingFixture] = useState(null);
 
   const navigate = useNavigate();
 
@@ -79,10 +80,7 @@ function AdminFixtures() {
 
       if (response.data.success) {
         setMessage("Fixture scheduled successfully!");
-        setHomeTeamId("");
-        setAwayTeamId("");
-        setMatchDate("");
-        setVenue("");
+        resetFixtureForm();
         loadData();
       }
     } catch (err) {
@@ -92,6 +90,76 @@ function AdminFixtures() {
       setSubmitting(false);
     }
   }
+  function resetFixtureForm() {
+    setEditingFixture(null);
+    setHomeTeamId("");
+    setAwayTeamId("");
+    setMatchDate("");
+    setVenue("");
+  }
+
+  function toDateTimeLocal(dateString) {
+    if (!dateString) return "";
+
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toISOString().slice(0, 16);
+  }
+
+  function startEditingFixture(fixture) {
+    setMessage("");
+    setError("");
+    setEditingFixture(fixture);
+    setHomeTeamId(String(fixture.home_team_id));
+    setAwayTeamId(String(fixture.away_team_id));
+    setMatchDate(toDateTimeLocal(fixture.match_date));
+    setVenue(fixture.venue || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleUpdateFixture(e) {
+    e.preventDefault();
+    setMessage("");
+    setError("");
+
+    if (homeTeamId === awayTeamId) {
+      setError("Home and Away teams must be different.");
+      return;
+    }
+
+    setSubmitting(true);
+    const token = localStorage.getItem("adminToken");
+
+    try {
+      const response = await axios.put(
+        `${API_BASE_URL}/api/admin/matches/${editingFixture.id}`,
+        {
+          home_team_id: homeTeamId,
+          away_team_id: awayTeamId,
+          match_date: matchDate,
+          venue: venue.trim() || "KSL Main Stadium",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        setMessage("Fixture updated successfully!");
+        resetFixtureForm();
+        loadData();
+      }
+    } catch (err) {
+      console.error("Error updating fixture:", err);
+      setError(err.response?.data?.message || err.message || "Failed to update fixture.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
     async function handleDeleteFixture(matchId) {
     if (!window.confirm("Are you sure you want to cancel and delete this fixture?")) {
       return;
@@ -203,10 +271,10 @@ function AdminFixtures() {
         {/* CREATE FIXTURE FORM */}
         <div className="admin-card">
           <div className="admin-card-header">
-            <h3>Schedule New Fixture</h3>
+            <h3>{editingFixture ? "Edit Fixture" : "Schedule New Fixture"}</h3>
           </div>
 
-          <form onSubmit={handleCreateFixture} className="admin-team-form">
+          <form onSubmit={editingFixture ? handleUpdateFixture : handleCreateFixture} className="admin-team-form">
             <div className="admin-form-grid">
               <div className="form-group">
                 <label htmlFor="homeTeam">Home Team *</label>
@@ -275,8 +343,20 @@ function AdminFixtures() {
                 className="btn btn-primary"
                 disabled={submitting}
               >
-                {submitting ? "Scheduling..." : "+ Schedule Match"}
+                {submitting
+                  ? (editingFixture ? "Saving..." : "Scheduling...")
+                  : (editingFixture ? "Save Fixture" : "+ Schedule Match")}
               </button>
+              {editingFixture && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={resetFixtureForm}
+                  disabled={submitting}
+                >
+                  Cancel Edit
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -339,6 +419,12 @@ function AdminFixtures() {
                       <td>{formatDateTime(m.match_date)}</td>
                       <td>📍 {m.venue || "Main Stadium"}</td>
                       <td style={{ textAlign: "right" }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => startEditingFixture(m)}
+                        >
+                          Edit
+                        </button>
                         <button
                           className="btn btn-danger-outline btn-sm"
                           onClick={() => handleDeleteFixture(m.id)}
