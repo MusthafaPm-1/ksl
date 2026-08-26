@@ -41,9 +41,10 @@ function AdminMatches() {
       weekday: "short",
       day: "numeric",
       month: "short",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
-    });
+      hour12: true,
+    }).replace(/\\b(am|pm)\\b/gi, (period) => period.toUpperCase());
   }
 
   function handleLogout() {
