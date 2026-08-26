@@ -68,9 +68,10 @@ function MatchDetails() {
       day: "numeric",
       month: "long",
       year: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
-    });
+      hour12: true,
+    }).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase());
   }
 
   function getStatusBadge(rawStatus) {
