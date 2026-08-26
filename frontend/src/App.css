@@ -2075,3 +2075,65 @@ html {
   .fixture-card__vs { padding: 0 9px; }
   .fixture-card__details { padding: 23px 24px 28px; }
 }
+
+
+/* =========================================================
+   ADMIN FIXTURE TABLE — GLASSMORPHISM
+   ========================================================= */
+.admin-card .table-container {
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(24, 34, 52, 0.66), rgba(8, 14, 25, 0.74));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 16px 40px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.admin-card .standings-table {
+  background: transparent;
+}
+
+.admin-card .standings-table th {
+  background: rgba(255, 255, 255, 0.07);
+  border-bottom-color: rgba(245, 185, 66, 0.28);
+  color: var(--ksl-gold-light);
+}
+
+.admin-card .standings-table td {
+  border-bottom-color: rgba(255, 255, 255, 0.09);
+}
+
+.admin-card .standings-table tbody tr {
+  background: rgba(4, 10, 20, 0.16);
+  transition: background 180ms ease;
+}
+
+.admin-card .standings-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.admin-card .standings-table tbody tr:hover {
+  background: rgba(245, 185, 66, 0.1);
+}
+
+@media (max-width: 768px) {
+  /* Keeps the form and the fixture table clearly separated while scrolling. */
+  .admin-card + .admin-card {
+    margin-top: 2.25rem;
+  }
+
+  .admin-card .table-container {
+    margin-top: 1.75rem;
+    border-radius: 15px;
+  }
+
+  .admin-card .standings-table td {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+}
