@@ -63,7 +63,7 @@ function AdminFixtures() {
     const token = localStorage.getItem("adminToken");
 
     try {
-      await axios.post(`${API_BASE_URL}/api/admin/matches`,
+      const response = await axios.post(`${API_BASE_URL}/api/admin/matches`,
         {
           home_team_id: homeTeamId,
           away_team_id: awayTeamId,
@@ -87,7 +87,7 @@ function AdminFixtures() {
       }
     } catch (err) {
       console.error("Error creating fixture:", err);
-      setError(err.response?.data?.message || "Failed to schedule fixture.");
+      setError(err.response?.data?.message || err.message || "Failed to schedule fixture.");
     } finally {
       setSubmitting(false);
     }
@@ -102,7 +102,7 @@ function AdminFixtures() {
     const token = localStorage.getItem("adminToken");
 
     try {
-      await axios.delete(`${API_BASE_URL}/api/admin/matches/${matchId}`,
+      const response = await axios.delete(`${API_BASE_URL}/api/admin/matches/${matchId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -116,7 +116,7 @@ function AdminFixtures() {
       }
     } catch (err) {
       console.error("Error deleting fixture:", err);
-      setError(err.response?.data?.message || "Failed to delete fixture.");
+      setError(err.response?.data?.message || err.message || "Failed to delete fixture.");
     }
   }
 
