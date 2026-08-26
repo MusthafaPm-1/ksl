@@ -785,7 +785,15 @@ function AdminMatchControl() {
                             <strong>Match Date:</strong>{" "}
                             {new Date(
                                 match.match_date
-                            ).toLocaleString("en-IN")}
+                            ).toLocaleString("en-GB", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                            }).replace(/\b(am|pm)\b/gi, (period) => period.toUpperCase())}
                         </p>
 
                     </div>
