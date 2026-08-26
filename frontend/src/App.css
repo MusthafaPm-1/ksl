@@ -2137,3 +2137,53 @@ html {
     padding-bottom: 18px;
   }
 }
+
+
+/* =========================================================
+   PUBLIC FIXTURE CARDS — MOBILE GLASSMORPHISM
+   ========================================================= */
+.fixture-card {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(145deg, rgba(25, 27, 72, 0.82), rgba(8, 14, 31, 0.8));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    0 18px 42px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.fixture-card__teams {
+  background:
+    linear-gradient(135deg, rgba(19, 20, 62, 0.74), rgba(27, 26, 78, 0.55));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.fixture-card__details {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--ksl-white);
+}
+
+.fixture-card__date {
+  color: var(--ksl-white);
+}
+
+.fixture-card__competition,
+.fixture-card__venue {
+  color: rgba(232, 237, 243, 0.78);
+}
+
+@media (max-width: 768px) {
+  .matches-list {
+    display: grid;
+    gap: 1.75rem;
+  }
+
+  .fixture-card {
+    margin: 0;
+  }
+
+  .fixture-card__details {
+    padding: 26px 24px 30px;
+  }
+}
