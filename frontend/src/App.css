@@ -2187,3 +2187,65 @@ html {
     padding: 26px 24px 30px;
   }
 }
+
+
+/* =========================================================
+   COMPACT RESPONSIVE FIXTURE LAYOUT
+   ========================================================= */
+.matches-list:has(.fixture-card) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 390px));
+  justify-content: center;
+  align-items: start;
+  gap: 28px;
+}
+
+.fixture-card {
+  width: 100%;
+  max-width: 390px;
+}
+
+.fixture-card__teams {
+  min-height: 164px;
+  padding: 24px 18px;
+}
+
+.fixture-card__team {
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.fixture-card__team img {
+  width: 60px;
+  height: 60px;
+}
+
+.fixture-card__vs {
+  padding: 0 12px;
+  font-size: 16px;
+}
+
+.fixture-card__details {
+  gap: 9px;
+  padding: 21px 23px 25px;
+}
+
+.fixture-card__date {
+  font-size: 16px;
+}
+
+.fixture-card__competition,
+.fixture-card__venue {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .matches-list:has(.fixture-card) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 38px; /* approximately 1 cm */
+  }
+
+  .fixture-card {
+    max-width: none;
+  }
+}
