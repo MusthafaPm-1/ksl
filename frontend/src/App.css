@@ -1788,3 +1788,22 @@ textarea:focus {
     display: none;
   }
 }
+
+/* =========================================
+   Upcoming Match Vertical Spacing
+   ========================================= */
+
+.home-page .match-card > .match-date {
+  margin-bottom: 2.25rem;
+}
+
+.home-page .match-card > .match-teams {
+  margin-bottom: 2.25rem;
+}
+
+@media (max-width: 768px) {
+  .home-page .match-card > .match-date,
+  .home-page .match-card > .match-teams {
+    margin-bottom: 1.75rem;
+  }
+}
