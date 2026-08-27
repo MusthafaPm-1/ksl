@@ -914,8 +914,29 @@ app.put(
       const matchId =
         req.params.id;
 
-      const { status } =
-        req.body;
+      const requestedStatus = req.body.status;
+      const statusAliases = {
+        halftime: "half-time",
+        ht: "half-time",
+        completed: "finished",
+        ft: "finished",
+      };
+      const status = statusAliases[requestedStatus] || requestedStatus;
+
+      const allowedStatuses = [
+        "scheduled",
+        "live",
+        "half-time",
+        "finished",
+        "postponed",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid match status",
+        });
+      }
 
       await pool.query(
         `
@@ -996,7 +1017,7 @@ app.put(
         `
         UPDATE matches
 
-        SET status = 'completed'
+        SET status = 'finished'
 
         WHERE id = ?
         `,
