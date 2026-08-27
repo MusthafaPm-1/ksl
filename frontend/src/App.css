@@ -2249,3 +2249,150 @@ html {
     max-width: none;
   }
 }
+
+/* HOME — PAST SCORES */
+.past-scores-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.past-scores-heading h2 { margin-bottom: 0; }
+
+.past-scores-eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--accent-gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.past-scores-link {
+  color: var(--accent-gold);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.past-scores-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.past-score-card {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(145deg, #111 0%, #0a0a0a 100%);
+  border: 1px solid #292929;
+  border-radius: 18px;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.past-score-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(247, 183, 49, 0.6);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+}
+
+.past-score-meta,
+.past-score-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.past-score-meta {
+  padding: 14px 18px;
+  border-bottom: 1px solid #222;
+}
+
+.past-score-status {
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  background: #252525;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+.past-score-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 25px 18px;
+}
+
+.past-score-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  text-align: center;
+}
+
+.past-score-team img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.past-score-team strong {
+  overflow: hidden;
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.past-score-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-gold);
+  font-family: var(--font-display);
+  font-size: 2.35rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.past-score-result small {
+  color: #666;
+  font-size: 1.2rem;
+}
+
+.past-score-footer {
+  padding: 13px 18px;
+  background: rgba(255, 255, 255, 0.025);
+  border-top: 1px solid #222;
+}
+
+.past-score-footer span:last-child {
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .past-scores-heading { align-items: flex-start; }
+  .past-scores-grid { grid-template-columns: 1fr; }
+  .past-score-meta,
+  .past-score-footer { font-size: 0.68rem; }
+  .past-score-teams { padding: 22px 14px; }
+  .past-score-team img {
+    width: 52px;
+    height: 52px;
+  }
+}
