@@ -6,6 +6,7 @@ import { API_BASE_URL } from "../config/api";
 function Home() {
   const [liveMatches, setLiveMatches] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
+  const [pastMatches, setPastMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,8 +29,17 @@ function Home() {
         return s === "scheduled" || s === "upcoming";
       });
 
+      const past = allMatches
+        .filter((m) => {
+          const s = (m.status || "").toLowerCase().replace(/[-_\s]/g, "");
+          return s === "finished" || s === "completed" || s === "ft";
+        })
+        .sort((a, b) => new Date(b.match_date || 0) - new Date(a.match_date || 0))
+        .slice(0, 6);
+
       setLiveMatches(live);
       setUpcomingMatches(upcoming);
+      setPastMatches(past);
     } catch (error) {
       console.error("Error loading home page data:", error);
     } finally {
@@ -170,7 +180,76 @@ function Home() {
         )}
       </section>
 
-      {/* 4. TEAMS SECTION */}
+      {/* 4. PAST SCORES SECTION */}
+      <section className="section past-scores-section">
+        <div className="past-scores-heading">
+          <div>
+            <span className="past-scores-eyebrow">FULL-TIME RESULTS</span>
+            <h2>Past Scores</h2>
+          </div>
+          <Link to="/results" className="past-scores-link">
+            View all results →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="empty-card">
+            <p>Loading past scores...</p>
+          </div>
+        ) : pastMatches.length === 0 ? (
+          <div className="empty-card">
+            <p>No completed matches yet.</p>
+          </div>
+        ) : (
+          <div className="past-scores-grid">
+            {pastMatches.map((match) => (
+              <Link to={`/match/${match.id}`} className="past-score-card" key={match.id}>
+                <div className="past-score-meta">
+                  <span className="past-score-status">FULL TIME</span>
+                  <span>{formatMatchDate(match.match_date)}</span>
+                </div>
+
+                <div className="past-score-teams">
+                  <div className="past-score-team">
+                    {match.home_team_logo && (
+                      <img
+                        src={`${API_BASE_URL}${match.home_team_logo}`}
+                        alt={`${match.home_team_name} logo`}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    )}
+                    <strong>{match.home_team_name}</strong>
+                  </div>
+
+                  <div className="past-score-result" aria-label={`${match.home_score ?? 0} to ${match.away_score ?? 0}`}>
+                    <span>{match.home_score ?? 0}</span>
+                    <small>–</small>
+                    <span>{match.away_score ?? 0}</span>
+                  </div>
+
+                  <div className="past-score-team">
+                    {match.away_team_logo && (
+                      <img
+                        src={`${API_BASE_URL}${match.away_team_logo}`}
+                        alt={`${match.away_team_name} logo`}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    )}
+                    <strong>{match.away_team_name}</strong>
+                  </div>
+                </div>
+
+                <div className="past-score-footer">
+                  <span>📍 {match.venue || "KSL Main Stadium"}</span>
+                  <span>Match details →</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 5. TEAMS SECTION */}
       <section className="section">
         <h2>Teams</h2>
 
