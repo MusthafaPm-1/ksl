@@ -238,7 +238,7 @@ function AdminLiveMatch() {
 
               <button
                 className={`btn btn-sm ${currentStatus === "halftime" || currentStatus === "ht" ? "btn-primary" : "btn-secondary"}`}
-                onClick={() => handleSetStatus("halftime")}
+                onClick={() => handleSetStatus("half-time")}
                 style={{ borderColor: "var(--accent-gold)" }}
               >
                 ⏸ Set HALF TIME (HT)
@@ -246,7 +246,7 @@ function AdminLiveMatch() {
 
               <button
                 className={`btn btn-sm ${currentStatus === "completed" || currentStatus === "finished" || currentStatus === "ft" ? "btn-primary" : "btn-secondary"}`}
-                onClick={() => handleSetStatus("completed")}
+                onClick={() => handleSetStatus("finished")}
               >
                 ⏹ Set FULL TIME (FT)
               </button>
