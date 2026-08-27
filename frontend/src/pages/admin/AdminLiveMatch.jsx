@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import io from "socket.io-client";
+import { API_BASE_URL } from "../../config/api";
 
 let socket;
 
@@ -30,7 +31,7 @@ function AdminLiveMatch() {
 
     fetchMatchDetails();
 
-    socket = io("http://localhost:5000");
+    socket = io(API_BASE_URL);
 
     socket.on("matchUpdate", (updatedMatch) => {
       if (updatedMatch && updatedMatch.id === parseInt(id)) {
@@ -54,7 +55,7 @@ function AdminLiveMatch() {
   async function fetchMatchDetails() {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/matches/${id}`);
+      const response = await axios.get(`${API_BASE_URL}/api/matches/${id}`);
       const data = response.data.match || response.data;
       setMatch(data);
       setHomeScore(data.home_score || 0);
@@ -75,7 +76,7 @@ function AdminLiveMatch() {
 
     try {
       const response = await axios.put(
-        `http://localhost:5000/api/admin/matches/${id}/status`,
+        `${API_BASE_URL}/api/admin/matches/${id}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -99,7 +100,7 @@ function AdminLiveMatch() {
 
     try {
       const response = await axios.put(
-        `http://localhost:5000/api/admin/matches/${id}/score`,
+        `${API_BASE_URL}/api/admin/matches/${id}/score`,
         { home_score: newHome, away_score: newAway },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -126,7 +127,7 @@ function AdminLiveMatch() {
 
     try {
       const response = await axios.post(
-        `http://localhost:5000/api/admin/matches/${id}/events`,
+        `${API_BASE_URL}/api/admin/matches/${id}/events`,
         {
           minute: parseInt(minute) || 0,
           event_type: eventType,
@@ -290,7 +291,7 @@ function AdminLiveMatch() {
               <div className="match-details-logo">
                 {match.home_team_logo && (
                   <img
-                    src={`http://localhost:5000${match.home_team_logo}`}
+                    src={`${API_BASE_URL}${match.home_team_logo}`}
                     alt=""
                     onError={(e) => { e.target.style.display = "none"; }}
                   />
@@ -327,7 +328,7 @@ function AdminLiveMatch() {
               <div className="match-details-logo">
                 {match.away_team_logo && (
                   <img
-                    src={`http://localhost:5000${match.away_team_logo}`}
+                    src={`${API_BASE_URL}${match.away_team_logo}`}
                     alt=""
                     onError={(e) => { e.target.style.display = "none"; }}
                   />
